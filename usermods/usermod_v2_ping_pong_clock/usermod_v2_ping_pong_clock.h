@@ -18,12 +18,11 @@ private:
 
   // ---- Variables for correct LED numbering below, edit only if your clock is built different ----
 
-  int baseH = 43;  // Adress for the one place of the hours
-  int baseHH = 7;  // Adress for the tens place of the hours
-  int baseM = 133; // Adress for the one place of the minutes
-  int baseMM = 97; // Adress for the tens place of the minutes
-  int colon1 = 79; // Adress for the first colon led
-  int colon2 = 80; // Adress for the second colon led
+  int baseH = 8;              // Adress for the one place of the hours
+  int baseHH = 36;            // Adress for the tens place of the hours
+  int baseM = 78;             // Adress for the one place of the minutes
+  int baseMM = 106;           // Adress for the tens place of the minutes
+  int colon[2] = { 64, 65 };  // Adress for the first colon led
 
   // Matrix for the illumination of the numbers
   // Note: These only define the increments of the base adress. e.g. to define the second Minute you have to add the baseMM to every led position
@@ -101,8 +100,8 @@ public:
     if(pingPongClockEnabled){
       if(colonOn)
       {
-        strip.setPixelColor(colon1, RGBW32(colorR, colorG, colorB, 0));
-        strip.setPixelColor(colon2, RGBW32(colorR, colorG, colorB, 0));
+        strip.setPixelColor(colon[0], RGBW32(colorR, colorG, colorB, 0));
+        strip.setPixelColor(colon[1], RGBW32(colorR, colorG, colorB, 0));
       }
       drawNumber(baseHH, (hour(localTime) / 10) % 10);
       drawNumber(baseH, hour(localTime) % 10); 
@@ -110,7 +109,7 @@ public:
       drawNumber(baseMM, minute(localTime) % 10);
     }
   }
-
+  
   uint16_t getId()
   {
     return USERMOD_ID_PING_PONG_CLOCK;
