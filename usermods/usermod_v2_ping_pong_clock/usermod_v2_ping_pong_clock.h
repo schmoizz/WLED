@@ -1,6 +1,24 @@
 #pragma once
 
+#include "src/dependencies/time/DS1307RTC.h"
 #include "wled.h"
+#include <Wire.h>
+
+#ifdef ARDUINO_ARCH_ESP32
+  #ifndef HW_PIN_SCL
+    #define HW_PIN_SCL 22
+  #endif
+  #ifndef HW_PIN_SDA
+    #define HW_PIN_SDA 21
+  #endif
+#else
+  #ifndef HW_PIN_SCL
+    #define HW_PIN_SCL 5
+  #endif
+  #ifndef HW_PIN_SDA
+    #define HW_PIN_SDA 4
+  #endif
+#endif
 
 /*
  * Usermods allow you to add own functionality to WLED more easily
@@ -31,6 +49,8 @@ private:
   // ---- Variables modified by settings below -----
   // set your config variables to their boot default value (this can also be done in readFromConfig() or a constructor if you prefer)
   bool pingPongClockEnabled = true;
+  bool rtcEnabled = false;
+  bool rtcErrorDisabled = false;
   int colorR = 0xFF;
   int colorG = 0xFF;
   int colorB = 0xFF;
@@ -68,7 +88,18 @@ public:
    * You can use it to initialize variables, sensors or similar.
    */
   void setup()
-  { }
+  {
+    PinManagerPinType pins[2] = { { HW_PIN_SCL, true }, { HW_PIN_SDA, true } };
+    if (!pinManager.allocateMultiplePins(pins, 2, PinOwner::HW_I2C)) { rtcErrorDisabled = true; return; }
+    Wire.pins(HW_PIN_SDA, HW_PIN_SCL);
+    time_t rtcTime = RTC.get();
+    if (rtcTime) {
+      toki.setTime(rtcTime,TOKI_NO_MS_ACCURACY,TOKI_TS_RTC);
+      updateLocalTime();
+    } else {
+      if (!RTC.chipPresent()) rtcErrorDisabled = true; //don't waste time if H/W error
+    }
+  }
 
   /*
    * connected() is called every time the WiFi is (re)connected
@@ -94,6 +125,13 @@ public:
       lastTime = millis();
       colonOn = !colonOn;
     }
+    if (strip.isUpdating()) return;
+    if(rtcEnabled) { 
+      if (!rtcErrorDisabled && toki.isTick()) {
+        time_t t = toki.second();
+        if (t != RTC.get()) RTC.set(t); //set RTC to NTP/UI-provided value
+      }
+    }
   }
 
   /*
@@ -109,6 +147,9 @@ public:
     JsonArray lightArr = user.createNestedArray("Uhrzeit-Anzeige"); //name
     lightArr.add(pingPongClockEnabled ? "aktiv" : "inaktiv"); //value
     lightArr.add(""); //unit
+    JsonArray rtcArr = user.createNestedArray("Real Time Clock");
+    lightArr.add(rtcEnabled && !rtcErrorDisabled ? "aktiv" : "inaktiv");
+    lightArr.add("");
   }
 
   /*
