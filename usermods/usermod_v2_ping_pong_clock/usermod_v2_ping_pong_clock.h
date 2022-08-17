@@ -148,8 +148,8 @@ public:
     lightArr.add(pingPongClockEnabled ? "aktiv" : "inaktiv"); //value
     lightArr.add(""); //unit
     JsonArray rtcArr = user.createNestedArray("Real Time Clock");
-    lightArr.add(rtcEnabled && !rtcErrorDisabled ? "aktiv" : "inaktiv");
-    lightArr.add("");
+    rtcArr.add(rtcEnabled && !rtcErrorDisabled ? "aktiv" : "inaktiv");
+    rtcArr.add("");
   }
 
   /*
