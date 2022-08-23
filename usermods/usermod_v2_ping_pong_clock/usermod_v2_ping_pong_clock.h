@@ -1,6 +1,15 @@
 #pragma once
 
 #include "wled.h"
+#include <RTClib.h>
+
+#ifdef ARDUINO_ARCH_ESP32
+  #define HW_PIN_SCL 22
+  #define HW_PIN_SDA 21
+#else
+  #define HW_PIN_SCL 5
+  #define HW_PIN_SDA 4
+#endif
 
 /*
  * Usermods allow you to add own functionality to WLED more easily
@@ -27,6 +36,10 @@ private:
   // Private class members. You can declare variables and functions only accessible to your usermod here
   unsigned long lastTime = 0;
   bool colonOn = true;
+  bool rtcEnabled = false;
+  bool rtcErrorDisabled = false;
+  String rtcError = "No Error";
+  RTC_DS3231 rtc;
 
   // ---- Variables modified by settings below -----
   // set your config variables to their boot default value (this can also be done in readFromConfig() or a constructor if you prefer)
@@ -34,6 +47,8 @@ private:
   int colorR = 0xFF;
   int colorG = 0xFF;
   int colorB = 0xFF;
+  int sdaPin = HW_PIN_SDA;
+  int sclPin = HW_PIN_SCL;
 
   // ---- Variables for correct LED numbering below, edit only if your clock is built different ----
 
@@ -68,7 +83,30 @@ public:
    * You can use it to initialize variables, sensors or similar.
    */
   void setup()
-  { }
+  {
+    if(rtcEnabled) {
+      PinManagerPinType pins[2] = { { sclPin, true }, { sclPin, true } };
+      if (!pinManager.allocateMultiplePins(pins, 2, PinOwner::HW_I2C)) 
+      { 
+        rtcError = "Pin Alloc Error";
+        rtcErrorDisabled = true; 
+        return; 
+      }
+      Wire.pins(sdaPin, sclPin);
+      if(!rtc.begin())
+      {
+        rtcError = "No Chip Error";
+        rtcErrorDisabled = true;
+        return;
+      }
+      if(!rtc.lostPower()) 
+      {
+        DateTime rtcTime = rtc.now();
+        toki.setTime(rtcTime.unixtime(), TOKI_NO_MS_ACCURACY, TOKI_TS_RTC);
+        updateLocalTime();
+      }
+    }
+  }
 
   /*
    * connected() is called every time the WiFi is (re)connected
@@ -94,6 +132,18 @@ public:
       lastTime = millis();
       colonOn = !colonOn;
     }
+    if(rtcEnabled)
+    {
+      if(strip.isUpdating()) return;
+      if(!rtcErrorDisabled && toki.isTick())
+      {
+        time_t t = toki.second();
+        if(t != rtc.now().unixtime()) 
+        {
+          rtc.adjust(DateTime(t));
+        }
+      }
+    }
   }
 
   /*
@@ -109,6 +159,13 @@ public:
     JsonArray lightArr = user.createNestedArray("Uhrzeit-Anzeige"); //name
     lightArr.add(pingPongClockEnabled ? "aktiv" : "inaktiv"); //value
     lightArr.add(""); //unit
+
+    JsonArray rtcArr = user.createNestedArray("RTC");
+    rtcArr.add(rtcEnabled ? "aktiv" : "inaktiv");
+
+    JsonArray rtcErrorArr = user.createNestedArray("RTC Error");
+    rtcErrorArr.add(rtcError);
+
   }
 
   /*
@@ -164,9 +221,11 @@ public:
   {
     JsonObject top = root.createNestedObject("Ping Pong Clock");
     top["enabled"] = pingPongClockEnabled;
-    top["colorR"]   = colorR;
-    top["colorG"]   = colorG;
-    top["colorB"]   = colorB;
+    top["colorR"]  = colorR;
+    top["colorG"]  = colorG;
+    top["colorB"]  = colorB;
+    top["sda"]     = sdaPin;
+    top["scl"]     = sclPin;  
   }
 
   /*
@@ -194,6 +253,8 @@ public:
       configComplete &= getJsonValue(top["colorR"], colorR);
       configComplete &= getJsonValue(top["colorG"], colorG);
       configComplete &= getJsonValue(top["colorB"], colorB);
+      configComplete &= getJsonValue(top["sda"], sdaPin);
+      configComplete &= getJsonValue(top["scl"], sclPin);
 
       return configComplete;
   }
