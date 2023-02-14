@@ -1,6 +1,6 @@
 #pragma once
 
-#include "src/dependencies/time/DS1307RTC.h"
+#include "DS1307RTC.h"
 #include "wled.h"
 #include <Wire.h>
 
@@ -13,10 +13,10 @@
   #endif
 #else
   #ifndef HW_PIN_SCL
-    #define HW_PIN_SCL 5
+    #define HW_PIN_SCL 13
   #endif
   #ifndef HW_PIN_SDA
-    #define HW_PIN_SDA 4
+    #define HW_PIN_SDA 12
   #endif
 #endif
 
@@ -51,6 +51,7 @@ private:
   bool pingPongClockEnabled = true;
   bool rtcEnabled = false;
   bool rtcErrorDisabled = false;
+  String rtcError = "";
   int colorR = 0xFF;
   int colorG = 0xFF;
   int colorB = 0xFF;
@@ -59,8 +60,8 @@ private:
 
   int baseH = 43;  // Adress for the one place of the hours
   int baseHH = 7;  // Adress for the tens place of the hours
-  int baseM = 133; // Adress for the one place of the minutes
-  int baseMM = 97; // Adress for the tens place of the minutes
+  int baseM = 97; // Adress for the one place of the minutes
+  int baseMM = 133; // Adress for the tens place of the minutes
   int colon1 = 79; // Adress for the first colon led
   int colon2 = 80; // Adress for the second colon led
 
@@ -90,14 +91,13 @@ public:
   void setup()
   {
     PinManagerPinType pins[2] = { { HW_PIN_SCL, true }, { HW_PIN_SDA, true } };
-    if (!pinManager.allocateMultiplePins(pins, 2, PinOwner::HW_I2C)) { rtcErrorDisabled = true; return; }
-    Wire.pins(HW_PIN_SDA, HW_PIN_SCL);
+    if (!pinManager.allocateMultiplePins(pins, 2, PinOwner::HW_I2C)) { rtcErrorDisabled = true; rtcError = "Pin alloc error"; return; }
     time_t rtcTime = RTC.get();
     if (rtcTime) {
       toki.setTime(rtcTime,TOKI_NO_MS_ACCURACY,TOKI_TS_RTC);
       updateLocalTime();
     } else {
-      if (!RTC.chipPresent()) rtcErrorDisabled = true; //don't waste time if H/W error
+      if (!RTC.chipPresent()) { rtcErrorDisabled = true; rtcError = "Chip error"; } //don't waste time if H/W error
     }
   }
 
@@ -148,7 +148,7 @@ public:
     lightArr.add(pingPongClockEnabled ? "aktiv" : "inaktiv"); //value
     lightArr.add(""); //unit
     JsonArray rtcArr = user.createNestedArray("Real Time Clock");
-    rtcArr.add(rtcEnabled && !rtcErrorDisabled ? "aktiv" : "inaktiv");
+    rtcArr.add(rtcError);
     rtcArr.add("");
   }
 
